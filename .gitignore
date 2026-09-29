@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Env / secrets
+.env
+
+# Data / runtime artifacts
+backend/data/radar.db
+backend/data/radar.db-journal
+backend/data/radar.db-wal
+backend/data/radar.db-shm
+backend/data/raw_html/
+backend/data/live_cache/
+backend/out/
+*.log
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Local browser / visual QA artifacts
+.edge-profile*/
+.*-check*.png
+
+# Coverage / editor / OS
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

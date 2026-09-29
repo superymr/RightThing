@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+  margin: 0;
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(99, 102, 241, 0.09), transparent 28rem),
+    radial-gradient(circle at 92% 8%, rgba(20, 184, 166, 0.07), transparent 24rem),
+    linear-gradient(180deg, #f8fafc 0%, #f5f7fb 45%, #f8fafc 100%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: clip;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.brand-mark {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 0.8rem;
+  color: white;
+  font-size: 1rem;
+  font-weight: 800;
+  background: linear-gradient(145deg, #6366f1, #4338ca 72%);
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.24);
+}
+
+.surface-card {
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 10px 32px rgba(15, 23, 42, 0.045);
+}
+
+.surface-card > header > div,
+.surface-card p,
+.surface-card h1,
+.surface-card h2,
+.surface-card h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .surface-card {
+    overflow: hidden;
+  }
+}
+
+.stat-tile {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025), 0 8px 24px rgba(15, 23, 42, 0.035);
+}
+
+input:not([type='range']),
+textarea,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
+input[type='range'] {
+  accent-color: #4f46e5;
+}
+
+/* 证据句高亮：原文回溯时用它把「模型引用的那句话」标出来。
+   用 mark 而不是自定义 span，语义正确且屏幕阅读器可识别。 */
+mark.evidence {
+  @apply rounded bg-amber-200/70 px-0.5 text-slate-900;
+}
+
+mark.evidence-active {
+  @apply bg-amber-400 ring-2 ring-amber-500;
+}
+
+/* 细滚动条：看板侧栏里 JD 原文很长，默认滚动条太抢眼 */
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

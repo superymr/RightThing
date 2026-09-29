@@ -19,7 +19,13 @@ api = [
     "pydantic-settings>=2.4",
     "sqlmodel>=0.0.22",
 ]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.6"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+    # Starlette 1.7+ 将 TestClient 的传输实现拆分到了 httpx2。
+    "httpx2>=0.28",
+]
 
 [project.scripts]
 rightthing = "app.cli:main"

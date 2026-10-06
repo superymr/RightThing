@@ -7,7 +7,7 @@ import { Badge, Card, EmptyState, percent } from '../ui'
 import type { GapItem, GapReport, SkillStat } from '../../api/types'
 
 const TIER_META: Record<string, { label: string; color: 'red' | 'amber' | 'sky' }> = {
-  must: { label: '必学', color: 'red' },
+  must: { label: '优先关注', color: 'red' },
   should: { label: '建议学', color: 'amber' },
   nice: { label: '加分项', color: 'sky' },
 }
@@ -110,7 +110,7 @@ export function GapSwimlane({
 
         <Column
           title="📚 需补齐"
-          hint="按 必学 → 建议学 → 加分项 排序；只被 1 个岗位提到的技能会被降级为加分项。"
+          hint="按 优先关注 → 建议学 → 加分项 排序；结合样本量与具体岗位决定学习投入。"
           count={missingTotal}
           tone="red"
         >
@@ -140,13 +140,13 @@ export function GapSwimlane({
         </Column>
 
         <Column
-          title="💤 边缘技能"
-          hint="你有、但这个方向几乎不需要 —— 可以暂缓投入，把时间给上面的清单。"
+          title="本次样本暂未提及"
+          hint="样本未提到这些技能，不能据此判断它们在该方向没有价值。"
           count={gap.marginal.length}
           tone="slate"
         >
           {gap.marginal.length === 0 ? (
-            <EmptyState title="没有边缘技能" hint="你的技能都落在这个方向的需求范围内" />
+            <EmptyState title="输入技能均有岗位提及" />
           ) : (
             gap.marginal.map((name) => (
               <div

@@ -174,7 +174,7 @@ export function SettingsPage() {
                   onChange={(event) => setApiKey(event.target.value)}
                 />
                 <span className="mt-1.5 block text-xs font-normal text-slate-400">
-                  密钥由后端写入本机 .env，浏览器无法读取已保存的完整内容。
+                  留空保留当前密钥；更换 API 地址时必须重新填写密钥。
                 </span>
               </label>
             </div>

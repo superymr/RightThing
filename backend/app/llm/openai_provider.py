@@ -13,6 +13,7 @@ import socket
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from typing import Any
 
 from ..config import Settings
@@ -100,6 +101,10 @@ class OpenAICompatibleProvider:
             "temperature": self.settings.llm_temperature,
             "stream": False,
         }
+        # 官方 DeepSeek 默认启用高强度思考。结构化JD抽取优先非思考模式。
+        # 仅对官方端点发送厂商参数，避免破坏其他OpenAI兼容服务。
+        if urlsplit(self.settings.llm_base_url).hostname == "api.deepseek.com":
+            body["thinking"] = {"type": "enabled" if self.settings.llm_deepseek_thinking else "disabled"}
         # 优先请求结构化输出；不支持该参数的端点会自动降级（见下方重试逻辑）
         if json_schema is not None:
             body["response_format"] = {

@@ -18,7 +18,7 @@ from typing import Any
 from ..analytics.gap import MUST_COVERAGE, MUST_REQUIRED_RATIO
 from ..analytics.gap import SHOULD_COVERAGE, SHOULD_REQUIRED_RATIO, MIN_JOBS
 
-TIER_LABEL = {"must": "必学", "should": "建议学", "nice": "加分项"}
+TIER_LABEL = {"must": "优先关注", "should": "建议学", "nice": "加分项"}
 
 
 def _pct(value: float, digits: int = 0) -> str:
@@ -103,7 +103,7 @@ def render_markdown(payload: dict[str, Any], *, top: int = 20) -> str:
     lines.append("")
     lines.append(
         "- **覆盖率** = 提到该技能的岗位数 / 样本量；**加权分** = 硬性要求数 × 1.0 + 加分项数 × 0.4。\n"
-        f"- **必学**：覆盖率 ≥ {_pct(MUST_COVERAGE)} 且必须占比 ≥ {_pct(MUST_REQUIRED_RATIO)}；"
+        f"- **优先关注**：覆盖率 ≥ {_pct(MUST_COVERAGE)} 且必须占比 ≥ {_pct(MUST_REQUIRED_RATIO)}；"
         f"**建议学**：覆盖率 ≥ {_pct(SHOULD_COVERAGE)} 或必须占比 ≥ {_pct(SHOULD_REQUIRED_RATIO)}。\n"
         f"- 只被 {MIN_JOBS - 1} 个岗位提到的技能一律降级为「加分项」—— 那是噪音，不是市场信号。\n"
         "- 所有数字都由确定性代码从结构化抽取结果中统计得出，可点回原始 JD 核对。\n"
@@ -129,6 +129,11 @@ def _render_direction(direction: dict[str, Any], *, top: int) -> list[str]:
         )
     )
     keywords = direction.get("keywords") or []
+    quality = direction.get("sample_quality") or {}
+    if quality:
+        lines.append(f"- 独立公司：{quality.get('company_count', 0)} 家；来源分布：" +
+                     "、".join(f"{name} {count} 条" for name, count in quality.get('source_counts', {}).items()))
+        lines.append("> " + ("初步观察。" if quality.get("preliminary") else "") + quality.get("note", ""))
     if keywords:
         lines.append(f"- 检索关键词：{'、'.join(keywords)}")
     lines.append("")
@@ -176,7 +181,7 @@ def _render_direction(direction: dict[str, Any], *, top: int) -> list[str]:
 
     marginal = gap.get("marginal") or []
     if marginal:
-        lines.append(f"**💤 该方向用不上，可暂缓投入**：{'、'.join(marginal)}")
+        lines.append(f"**本次样本暂未提及（不代表没有价值）**：{'、'.join(marginal)}")
         lines.append("")
 
     lines.append(f"### 技能排行（Top {top}）")

@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
-import { api, subscribeTaskEvents } from './client'
+import { api, ApiError, subscribeTaskEvents } from './client'
 import type {
   AnalysisSummary,
   DirectionOption,
@@ -147,13 +147,20 @@ export function useTaskProgress(taskId: string | null): TaskProgress {
       try {
         const state = await api.get<TaskState>(`/api/tasks/${taskId}`)
         setTask(state)
-        if (state.status === 'done' || state.status === 'failed' || state.status === 'canceled') {
+        if (['done', 'failed', 'canceled', 'interrupted'].includes(state.status)) {
           finishedRef.current = true
           stop()
           if (timer) window.clearInterval(timer)
         }
-      } catch {
-        // 任务可能已被回收（max_history），保持上一次状态即可
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          setTask({ task_id: taskId, kind: 'analyze', status: 'interrupted',
+            created_at: '', started_at: '', finished_at: '', event_count: 0,
+            last_event: null, result: null,
+            error: '任务已不存在，请重新发起分析或查看历史报告。' })
+          stop()
+          if (timer) window.clearInterval(timer)
+        }
       }
     }
     void poll()
@@ -176,7 +183,7 @@ export function useTaskProgress(taskId: string | null): TaskProgress {
     status: task?.status ?? 'running',
     result: task?.result ?? null,
     error: task?.error ?? '',
-    finished: task?.status === 'done' || task?.status === 'failed' || task?.status === 'canceled',
+    finished: ['done', 'failed', 'canceled', 'interrupted'].includes(task?.status ?? ''),
   }
 }
 

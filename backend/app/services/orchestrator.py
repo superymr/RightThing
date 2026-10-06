@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
@@ -388,7 +389,8 @@ class Orchestrator:
         """按方向关键词采集，跨关键词去重，并隔离单个在线源故障。"""
         collected: list[RawJob] = []
         seen: set[str] = set()
-        keywords = direction.keywords or [direction.title]
+        seen_content: set[tuple[str, str, str, str]] = set()
+        keywords = list(dict.fromkeys([*(direction.keywords or [direction.title]), *direction.related_titles]))
         errors: list[str] = []
 
         sample_sources = [source for source in self.sources if source.name == "sample"]
@@ -407,7 +409,28 @@ class Orchestrator:
         else:  # auto：样例能覆盖就保持确定性；完全无样例时才访问在线源
             groups = [sample_sources, live_sources]
 
-        def collect_from(sources: list[JobSource]) -> None:
+        def collect_from(sources: list[JobSource], *, refill: bool = False) -> None:
+            # 独立国内源同时执行第一轮查询。采集结果仍按来源顺序处理，保证可复现。
+            prefetched = {}
+            domestic = [source for source in sources if source.name in {"ncss", "shixiseng", "nowcoder"}]
+            if not refill and len(domestic) > 1 and time.monotonic() < live_deadline:
+                def first_search(source):
+                    contextual = getattr(source, "search_with_context", None)
+                    if callable(contextual):
+                        return contextual(keywords[0], city=options.city or None,
+                                          limit=options.limit_per_direction, deadline=live_deadline,
+                                          on_progress=lambda current, total, found: emit(
+                                              "collect", f"{source.name} 扫描 {current}/{total}，命中 {found} 条",
+                                              current, total, direction.title))
+                    return source.search(keywords[0], city=options.city or None,
+                                         limit=options.limit_per_direction)
+                with ThreadPoolExecutor(max_workers=len(domestic)) as pool:
+                    futures = {source.name: pool.submit(first_search, source) for source in domestic}
+                    for name, future in futures.items():
+                        try:
+                            prefetched[name] = future.result()
+                        except Exception as exc:
+                            prefetched[name] = exc
             for source_index, source in enumerate(sources):
                 if len(collected) >= options.limit_per_direction:
                     return
@@ -426,6 +449,8 @@ class Orchestrator:
                 else:
                     effective_sources_left = max(1, len(remaining_sources))
                 source_quota = max(1, math.ceil(remaining_slots / effective_sources_left))
+                if refill:
+                    source_quota = remaining_slots
                 source_added = 0
                 now = time.monotonic()
                 remaining_time = max(0.0, live_deadline - now)
@@ -444,7 +469,7 @@ class Orchestrator:
                     )
                     # 支持 deadline 的源会先查本地真实职位缓存，因此即使在线预算
                     # 已用完也必须调用；不支持该能力的源才在这里直接停止。
-                    if budget_expired and not callable(contextual):
+                    if budget_expired and not callable(contextual) and source.name not in prefetched:
                         break
                     try:
                         search_city = options.city or None
@@ -458,7 +483,12 @@ class Orchestrator:
                             options.limit_per_direction - len(collected),
                             source_quota - source_added,
                         )
-                        if callable(contextual):
+                        if source.name in prefetched and keyword == keywords[0]:
+                            first_result = prefetched.pop(source.name)
+                            if isinstance(first_result, Exception):
+                                raise first_result
+                            jobs = first_result
+                        elif callable(contextual):
                             jobs = contextual(
                                 keyword,
                                 city=search_city,
@@ -506,11 +536,18 @@ class Orchestrator:
                         )
                         if key in seen:
                             continue
+                        identity = tuple(re.sub(r"\s+", "", value).casefold() for value in
+                                         (job.company, job.title, job.city, job.raw_text))
+                        if identity in seen_content:
+                            continue
                         seen.add(key)
+                        seen_content.add(identity)
                         collected.append(job)
                         source_added += 1
                         if len(collected) >= options.limit_per_direction:
                             return
+                        if source_added >= source_quota:
+                            break
 
         for index, group in enumerate(groups):
             if not group:
@@ -518,6 +555,10 @@ class Orchestrator:
                     errors.append("在线采集未启用；请设置 JOBRADAR_ENABLE_LIVE_SOURCES=1 并重启")
                 continue
             collect_from(group)
+            if (group and all(source.name != "sample" for source in group)
+                    and len(collected) < options.limit_per_direction):
+                # 首轮低产来源留下的名额交给仍有结果的来源，复用真实岗位缓存。
+                collect_from(group, refill=True)
             if mode == "auto" and index == 0 and collected:
                 break
         return collected, errors

@@ -12,6 +12,7 @@ from typing import Any
 from ..config import Settings
 from ..services.cache import LLMCache, make_cache_key
 from .base import ChatProvider, LLMError
+from .compact import COMPACT_SCHEMA, COMPACT_SYSTEM, COMPACT_USER, expand_profile
 from .prompts import (
     DIRECTION_SYSTEM,
     DIRECTION_USER_TEMPLATE,
@@ -67,7 +68,8 @@ class Extractor:
 
     # ------------------------------------------------------------------
     def extract_profile(self, *, job_title: str, company: str, jd_text: str) -> ProfileOutcome:
-        user = JD_EXTRACT_USER_TEMPLATE.format(
+        compact = self.settings.llm_compact_extraction and self.provider.name != "mock"
+        user = (COMPACT_USER if compact else JD_EXTRACT_USER_TEMPLATE).format(
             job_title=job_title or "未标注",
             company=company or "未标注",
             jd_text=jd_text,
@@ -75,12 +77,13 @@ class Extractor:
         try:
             payload, cache_hit, meta = self._call_with_meta(
                 kind=PROFILE_KIND,
-                system=JD_EXTRACT_SYSTEM,
+                system=COMPACT_SYSTEM if compact else JD_EXTRACT_SYSTEM,
                 user=user,
                 schema_name=PROFILE_KIND,
-                json_schema=JD_PROFILE_SCHEMA,
+                json_schema=COMPACT_SCHEMA if compact else JD_PROFILE_SCHEMA,
                 cache_payload=jd_text,
             )
+            payload = {**payload, "job_title": payload.get("job_title") or job_title}
             profile = JDProfile.from_dict(payload)
             return ProfileOutcome(
                 profile=profile,
@@ -132,10 +135,14 @@ class Extractor:
     ) -> tuple[dict[str, Any], bool, dict[str, Any]]:
         model = self.settings.extraction_model
         model_name = getattr(self.provider, "model_name", model)
+        cache_model = f"{self.provider.name}:{model_name}:{self.settings.llm_base_url.rstrip('/')}:{self.settings.llm_temperature}"
+        # 显式选择完整模式时，不能读到缺少职责/摘要的紧凑模式缓存。
+        if kind == PROFILE_KIND and not self.settings.llm_compact_extraction and self.provider.name != "mock":
+            cache_model += ":full"
         key = make_cache_key(
             kind=kind,
             prompt_version=self.settings.cache_namespace,
-            model=f"{self.provider.name}:{model_name}",
+            model=cache_model,
             payload=cache_payload,
         )
 
@@ -150,6 +157,10 @@ class Extractor:
             schema_name=schema_name,
             json_schema=json_schema,
         )
+
+        # 紧凑格式只用于传输；缓存仍保存完整结构，旧缓存可直接复用。
+        if kind == PROFILE_KIND and "ev" in response.data:
+            response.data = expand_profile(response.data, cache_payload)
 
         if self.cache is not None:
             self.cache.put(

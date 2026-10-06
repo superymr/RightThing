@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 
 from ..utils.timeutil import now_iso
+from ..models.db import Database
 
 # SSE 心跳间隔：代理通常在 30~60 秒无数据时断开连接
 KEEPALIVE_SECONDS = 15
@@ -38,7 +39,8 @@ RUNNING = "running"
 DONE = "done"
 FAILED = "failed"
 CANCELED = "canceled"
-TERMINAL = frozenset({DONE, FAILED, CANCELED})
+INTERRUPTED = "interrupted"
+TERMINAL = frozenset({DONE, FAILED, CANCELED, INTERRUPTED})
 
 
 class TaskCanceled(RuntimeError):
@@ -80,21 +82,44 @@ class Task:
 class TaskManager:
     """把长任务放到线程池里跑，并把进度以事件流的形式暴露出去。"""
 
-    def __init__(self, *, max_workers: int = 3, max_history: int = 50) -> None:
+    def __init__(self, *, max_workers: int = 3, max_history: int = 50, db: Database | None = None) -> None:
         self._tasks: dict[str, Task] = {}
         self._lock = threading.Lock()
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="jobradar-task"
         )
         self._max_history = max_history
+        self._db = db
+        if db is not None:
+            db.execute("CREATE TABLE IF NOT EXISTS background_task (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+            for row in db.query("SELECT payload FROM background_task"):
+                task = Task(**json.loads(row["payload"]))
+                if not task.finished:
+                    task.status = INTERRUPTED
+                    task.error = "服务重启，分析已中断。请重新发起分析；已完成的历史报告仍可查看。"
+                    task.finished_at = now_iso()
+                    task.events.append({"stage": INTERRUPTED, "message": task.error, "at": now_iso()})
+                self._tasks[task.id] = task
+                self._save(task)
+
+    def _save(self, task: Task) -> None:
+        if self._db is None:
+            return
+        payload = {key: getattr(task, key) for key in (
+            "id", "kind", "status", "created_at", "started_at", "finished_at",
+            "events", "result", "error", "cancel_requested",
+        )}
+        self._db.execute("INSERT OR REPLACE INTO background_task (id, payload) VALUES (?, ?)",
+                         (task.id, json.dumps(payload, ensure_ascii=False)))
 
     # ------------------------------------------------------------------
     def submit(self, kind: str, worker: Callable[[Callable[[dict], None]], Any]) -> Task:
         """提交任务。worker 接受一个 emit 回调，返回值即任务结果。"""
-        task = Task(id=uuid.uuid4().hex[:12], kind=kind, status=RUNNING, started_at=now_iso())
+        task = Task(id=uuid.uuid4().hex[:12], kind=kind)
         with self._lock:
             self._prune_locked()
             self._tasks[task.id] = task
+            self._save(task)
         self._executor.submit(self._run, task, worker)
         return task
 
@@ -108,6 +133,9 @@ class TaskManager:
         return task
 
     def _run(self, task: Task, worker: Callable[[Callable[[dict], None]], Any]) -> None:
+        task.status = RUNNING
+        task.started_at = now_iso()
+        self._save(task)
         def emit(payload: dict) -> None:
             if task.cancel_requested:
                 raise TaskCanceled("任务已由用户取消")
@@ -133,6 +161,7 @@ class TaskManager:
             task = self._tasks.get(task_id)
             if task is not None and not task.finished:
                 task.cancel_requested = True
+                self._save(task)
             return task
 
     # ------------------------------------------------------------------
@@ -161,6 +190,7 @@ class TaskManager:
         event.setdefault("at", now_iso())
         with self._lock:
             task.events.append(event)
+            self._save(task)
             channels = list(task.subscribers)
         for channel in channels:
             channel.put(event)
@@ -178,9 +208,12 @@ class TaskManager:
         先回放历史事件再转入实时推送 —— 晚连的客户端不会丢失任何进度。
         同步生成器即可：Starlette 会把它放进线程池消费，不阻塞事件循环。
         """
-        channel = self.subscribe(task)
+        channel: queue.Queue = queue.Queue()
+        with self._lock:
+            history = list(task.events)
+            task.subscribers.append(channel)
         try:
-            for event in list(task.events):
+            for event in history:
                 yield _format_sse(event)
 
             if task.finished:
@@ -206,8 +239,8 @@ class TaskManager:
             return
         ordered = sorted(self._tasks.values(), key=lambda t: t.created_at)
         for task in ordered[: len(self._tasks) - self._max_history]:
-            if not task.finished and task.subscribers:
-                continue  # 还在跑的、还有人听的，不清理
+            if not task.finished:
+                continue  # 运行中或排队中的任务不能回收
             self._tasks.pop(task.id, None)
 
     def shutdown(self) -> None:

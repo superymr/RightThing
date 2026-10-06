@@ -74,6 +74,12 @@ export interface JobBrief {
 }
 
 export interface DirectionReport {
+  sample_quality?: {
+    company_count: number
+    source_counts: Record<string, number>
+    preliminary: boolean
+    note: string
+  }
   direction_id: number
   title: string
   /** AI 估计的匹配度，仅作排序参考 */

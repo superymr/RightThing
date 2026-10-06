@@ -148,6 +148,15 @@ function DirectionPanel({
 
   return (
     <div className="space-y-5">
+      <Card title={direction.sample_quality?.preliminary ?? direction.ok_jobs < 20 ? '初步观察 · 样本有限' : '本次样本说明'}>
+        <p className="text-sm text-slate-600">
+          成功解析 {direction.ok_jobs} 条岗位，来自 {direction.sample_quality?.company_count ?? new Set(direction.jobs.map(job => job.company).filter(Boolean)).size} 家公司。
+          {direction.sample_quality?.note ?? '统计仅代表本次采集样本，不代表整个招聘市场。'}
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          {Object.entries(direction.sample_quality?.source_counts ?? {}).map(([source, count]) => `${source}：${count} 条`).join(' · ')}
+        </p>
+      </Card>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="样本量（JD 条数）" value={direction.ok_jobs} hint={`采集 ${direction.total_jobs} 条`} />
         <StatTile
@@ -157,7 +166,7 @@ function DirectionPanel({
           tone="emerald"
         />
         <StatTile
-          label="必学技能"
+          label={direction.ok_jobs < 20 ? '优先关注技能' : '高频硬性要求'}
           value={direction.gap.must_learn.length}
           hint="覆盖率 ≥ 40% 且必须占比 ≥ 60%"
           tone="red"

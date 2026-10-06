@@ -80,7 +80,7 @@ def create_app(
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
     app.state.db.init_schema()
-    app.state.tasks = TaskManager(max_workers=3)
+    app.state.tasks = TaskManager(max_workers=3, db=app.state.db)
     app.state.orchestrator = OrchestratorHolder(settings)
 
     app.add_middleware(

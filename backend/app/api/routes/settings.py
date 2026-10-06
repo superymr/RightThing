@@ -51,6 +51,9 @@ def _response(settings: Settings) -> LLMSettingsResponse:
 
 def _candidate(current: Settings, body: LLMSettingsUpdate) -> Settings:
     incoming_key = body.api_key.get_secret_value().strip() if body.api_key else ""
+    if (body.provider != "mock" and body.base_url != current.llm_base_url.rstrip("/")
+            and current.llm_api_key and not incoming_key):
+        raise ApiError("invalid_llm_settings", "更换 API 地址时请重新填写 API Key，避免将旧密钥发送到新服务", status_code=400)
     api_key = "" if body.clear_api_key else (incoming_key or current.llm_api_key)
     if body.provider != "mock":
         if not body.base_url:

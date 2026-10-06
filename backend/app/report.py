@@ -198,7 +198,7 @@ def _render_gap(item: DirectionReport) -> list[str]:
             )
 
     for tier_items, label, hint, fold_singles in (
-        (gap.must_learn, "🔥 必学清单", "覆盖率高且以硬性要求为主，不学基本过不了简历关", False),
+        (gap.must_learn, "优先关注清单", "本次样本覆盖率高且以硬性要求为主，请结合样本量判断", False),
         (gap.should_learn, "📘 建议学", "有一定覆盖率，能显著提升匹配度", False),
         (gap.nice_to_have, "➕ 加分项", "少数岗位要求，性价比取决于你的目标公司", True),
     ):
@@ -224,7 +224,7 @@ def _render_gap(item: DirectionReport) -> list[str]:
 
     if gap.marginal:
         lines.append("")
-        lines.append(f"  💤 该方向用不上，可暂缓投入：{'、'.join(gap.marginal[:12])}")
+        lines.append(f"  本次样本暂未提及（不代表没有价值）：{'、'.join(gap.marginal[:12])}")
 
     return lines
 

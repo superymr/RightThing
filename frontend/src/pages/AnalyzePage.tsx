@@ -25,6 +25,7 @@ const STAGE_LABELS: Record<string, string> = {
   failed: '失败',
   error: '出错',
   canceled: '已取消',
+  interrupted: '已中断',
 }
 
 function EventRow({ event }: { event: ProgressEvent }) {
@@ -144,6 +145,7 @@ export function AnalyzePage() {
         {progress.error && (
           <div className="mt-3">
             <ErrorNotice error={new Error(progress.error)} />
+            <Link to="/" className="mt-3 inline-block text-sm font-semibold text-indigo-600">重新发起分析 →</Link>
           </div>
         )}
       </Card>

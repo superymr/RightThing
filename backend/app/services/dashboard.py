@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from typing import Any
 
 from ..analytics.aggregator import aggregate
@@ -139,6 +140,9 @@ def _build_direction(
 
     result = aggregate(profiles, direction=row["title"])
     gap = compute_gap(canonical_skills, result)
+    valid_jobs = [job for job in jobs if job['status'] == 'ok']
+    companies = {job['company'].strip() for job in valid_jobs if job['company'] and job['company'].strip()}
+    sources = dict(Counter(job['source'] for job in valid_jobs))
 
     return {
         "direction_id": row["id"],
@@ -149,6 +153,12 @@ def _build_direction(
         "total_jobs": len(jobs),
         "ok_jobs": len(profiles),
         "failed_jobs": failed,
+        "sample_quality": {
+            "company_count": len(companies),
+            "source_counts": sources,
+            "preliminary": len(profiles) < 20 or len(companies) < 5,
+            "note": "仅代表本次采集样本，不是全市场统计；样本数量和公司分布较少时请视为初步观察。",
+        },
         "languages": [s.to_dict() for s in result.languages],
         "hard_skills": [s.to_dict() for s in result.hard_skills],
         "domain_knowledge": [s.to_dict() for s in result.domain_knowledge],

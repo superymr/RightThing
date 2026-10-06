@@ -138,6 +138,7 @@ export function subscribeTaskEvents(
     'done',
     'failed',
     'canceled',
+    'interrupted',
     'error',
   ]
   for (const stage of STAGES) {

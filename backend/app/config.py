@@ -72,6 +72,8 @@ class Settings:
     llm_max_concurrency: int = 5
     llm_timeout: float = 120.0
     llm_max_retries: int = 2
+    llm_compact_extraction: bool = True
+    llm_deepseek_thinking: bool = False
     config_path: Path = field(default_factory=lambda: PROJECT_DIR / ".env")
 
     # ---- 存储 ----
@@ -158,6 +160,8 @@ class Settings:
             llm_max_concurrency=_as_int(get("LLM_MAX_CONCURRENCY"), 5),
             llm_timeout=_as_float(get("LLM_TIMEOUT"), 120.0),
             llm_max_retries=_as_int(get("LLM_MAX_RETRIES"), 2),
+            llm_compact_extraction=_as_bool(get("LLM_COMPACT_EXTRACTION"), True),
+            llm_deepseek_thinking=_as_bool(get("LLM_DEEPSEEK_THINKING"), False),
             config_path=config_path,
             db_path=Path(db_raw) if db_raw else DEFAULT_DB_PATH,
             cache_enabled=_as_bool(get("JOBRADAR_CACHE"), True),
